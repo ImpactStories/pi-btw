@@ -55,6 +55,21 @@ Notes panel keys:
 
 BTW notes are stored as custom entries in pi's session JSONL file. Side sessions point back to their parent session, so the extension can resume existing side sessions instead of duplicating them.
 
+## Compatibility note: session-navigation monkey patch
+
+`pi-btw` currently applies a small interactive-mode monkey patch at startup.
+
+The extension needs to create and switch sessions from keyboard shortcuts (`Shift+Right` / `Shift+Left`). pi exposes `newSession()` and `switchSession()` to command handlers such as `/btw`, but shortcut handlers currently receive a narrower extension context that does not include those session-navigation methods.
+
+Until pi exposes those methods to shortcut handlers directly, `pi-btw` patches `InteractiveMode.createExtensionUIContext()` to attach:
+
+- `ctx.ui.newSession(...)`, backed by the same runtime path as command `ctx.newSession(...)`
+- `ctx.ui.switchSession(...)`, backed by interactive mode's resume-session handler
+
+The patch is guarded by `Symbol.for("impactstories.pi-btw.interactive-mode-patched.v2")` so it is installed only once. If pi changes its interactive internals, the shortcuts may stop opening/switching sessions; the `/btw` and `/btw-back` commands are the intended fallback.
+
+The proper upstream pi change would be to give user-initiated shortcut handlers a command-capable context, or otherwise expose session navigation as a supported shortcut API. That would let this extension remove the monkey patch entirely.
+
 ## Development
 
 ```bash
@@ -78,14 +93,19 @@ pi install /absolute/path/to/pi-btw
 
 ## Release
 
-Releases are tag-driven. After updating `package.json` and committing the change:
+Publishing is currently manual because npm may require passkey/OTP approval:
 
 ```bash
-npm version patch   # or minor / major
-git push origin main --follow-tags
+npm run ci
+npm publish --access public
 ```
 
-The release workflow runs type checks and tests, then publishes the package to npm with provenance. It expects an `NPM_TOKEN` repository secret.
+After publishing, commit the version bump and tag it:
+
+```bash
+git tag v0.1.0
+git push origin main --tags
+```
 
 ## Security
 
